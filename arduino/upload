@@ -1,0 +1,6 @@
+#!/bin/bash
+ard-reset-arduino /dev/ttyACM0
+avrdude -q -V -D -p atmega328p -C /usr/share/arduino/hardware/tools/avr/../avrdude.conf -c arduino -b 57600 -P /dev/ttyACM0 \
+				-U flash:w:build-atmega328/arduino.hex:i
+#/usr/bin/avrdude -q -V -D -p atmega328p -C /usr/share/arduino/hardware/tools/avr/../avrdude.conf -c arduino -b 115200 -P /dev/ttyACM0 -U flash:w:build-uno/arduino.hex:i
+#/usr/bin/avrdude -q -V -p atmega328p -D -c stk500v2 -b 115200 -P /dev/ttyACM0 -U flash:w:build-atmega328/arduino.hex:i

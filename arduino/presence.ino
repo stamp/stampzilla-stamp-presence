@@ -2,8 +2,13 @@
 #include <SdFat.h>         // SDFat Library
 #include <SdFatUtil.h>     // SDFat Util Library
 #include <SFEMP3Shield.h>  // Mp3 Shield Library
+#include <Ethernet.h>	   // Ethernet library
+//#include <EthernetBonjour.h>
 
 SdFat sd; // Create object to handle SD functions
+
+
+byte mac[] = { 0x90, 0xA2, 0xDA, 0x00, 0x76, 0xDC }; 
 
 SFEMP3Shield MP3player; // Create Mp3 library object
 // These variables are used in the MP3 initialization to set up
@@ -15,6 +20,7 @@ const uint16_t monoMode = 1;  // Mono setting 0=off, 3=max
 int lastTrigger = 0; // This variable keeps track of which tune is playing
 byte status = 0;
 byte prev = 0;
+int soundfile = 1;
 
 long lastDebounceTime = 0; 
 long debounceDelay = 50;
@@ -24,6 +30,30 @@ int buttonState;
 void initSD();
 void initMP3Player();
 
+EthernetServer server(23);
+
+// trumpet.mp3
+// jingle.mp3
+// NuclearDoorbell1.mp3
+// NuclearDoorbell2.mp3
+// NuclearDoorbell3.mp3
+// message.mp3
+// success.mp3
+
+
+
+void printIPAddress()
+{
+  Serial.print("My IP address: ");
+  for (byte thisByte = 0; thisByte < 4; thisByte++) {
+    // print the value of each byte of the IP address:
+    Serial.print(Ethernet.localIP()[thisByte], DEC);
+    Serial.print(".");
+  }
+
+  Serial.println();
+}
+
 void setup()
 {
   pinMode(A0, INPUT);
@@ -31,12 +61,31 @@ void setup()
   pinMode(A2, INPUT);  
   pinMode(A3, INPUT);
   
-  pinMode(A5, INPUT_PULLUP);
+  pinMode(A5, INPUT);
 
   Serial.begin(9600);
 
   initSD();  // Initialize the SD card
   initMP3Player(); // Initialize the MP3 Shield
+
+  MP3player.setVolume(0, 0);
+
+
+  if (Ethernet.begin(mac) != 0) {
+	MP3player.playMP3("success.mp3");
+	printIPAddress();
+  }
+
+  server.begin();
+
+  /*EthernetBonjour.begin("arduino");*/
+  /*EthernetBonjour.addServiceRecord(*/
+    /*"DoorBell._stampzilla",*/
+    /*21,*/
+    /*MDNSServiceTCP*/
+  /*);*/
+
+
 }
 
 // All the loop does is continuously step through the trigger
@@ -44,6 +93,38 @@ void setup()
 //  currently playing track, and start playing a new one.
 void loop()
 {
+  switch (Ethernet.maintain())
+  {
+    case 1:
+      //renewed fail
+      Serial.println("Error: renewed fail");
+      break;
+
+    case 2:
+      //renewed success
+      Serial.println("Renewed success");
+
+      //print your local IP address:
+      break;
+
+    case 3:
+      //rebind fail
+      Serial.println("Error: rebind fail");
+      break;
+
+    case 4:
+      //rebind success
+      Serial.println("Rebind success");
+
+      //print your local IP address:
+      break;
+    default:
+      //nothing happened
+      break;
+  }
+
+  /*EthernetBonjour.run();*/
+
   int reading = digitalRead(A5);
   if (reading != lastButtonState) {
     lastDebounceTime = millis();
@@ -54,10 +135,28 @@ void loop()
       buttonState = reading;
       if (buttonState == LOW) {
         Serial.println("<DOOR>");
+		server.write("<DOOR>\n");
+
+		soundfile++;
+		if (soundfile>4) {
+			soundfile=1;
+		}
+
         if (MP3player.isPlaying())
           MP3player.stopTrack();
-    
-        uint8_t result = MP3player.playMP3("trumpet.mp3");
+
+		uint8_t result = 1;		
+
+		switch(soundfile) {
+			case 1:
+	        result = MP3player.playMP3("nuclear1.mp3");break;
+			case 2:
+	        result = MP3player.playMP3("nuclear2.mp3");break;
+			case 3:
+	        result = MP3player.playMP3("nuclear3.mp3");break;
+			case 4:
+	        result = MP3player.playMP3("trumpet.mp3");break;
+		}
   
         if (result != 0)  // playTrack() returns 0 on success
         {
@@ -85,10 +184,13 @@ void loop()
   
   if (status != prev) {
     Serial.print("<");
+	server.write("<");
     for (unsigned int mask = 0x08; mask; mask >>= 1) {
-       Serial.print(mask&status?'1':'0');
+      Serial.print(mask&status?'1':'0');
+	  server.write(mask&status?'1':'0');
     }
     Serial.println(">");
+	server.write(">\n");
     prev = status;    
   }
 }

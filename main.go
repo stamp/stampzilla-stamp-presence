@@ -4,17 +4,19 @@ import (
 	"flag"
 	"regexp"
 	"time"
+	"net"
 
 	log "github.com/cihub/seelog"
 	"github.com/stampzilla/stampzilla-go/nodes/basenode"
 	"github.com/stampzilla/stampzilla-go/pkg/notifier"
 	"github.com/stampzilla/stampzilla-go/protocol"
-	"github.com/tarm/goserial"
 )
 
 // MAIN - This is run when the init function is done
 
 var notify *notifier.Notify
+
+var ip = flag.String("ip", "10.21.10.158", "Ip to the device")
 
 func main() { /*{{{*/
 	log.Info("Starting stamp-presence node")
@@ -44,7 +46,7 @@ func main() { /*{{{*/
 	// This worker recives all incomming commands
 	go serverRecv(node, connection)
 
-	go serialConnector(state, node, connection)
+	go socketConnection(state, node, connection)
 	select {}
 } /*}}}*/
 
@@ -70,37 +72,21 @@ func serverRecv(node *protocol.Node, connection basenode.Connection) {
 func processCommand(node *protocol.Node, connection basenode.Connection, cmd protocol.Command) {
 }
 
-func serialConnector(state *State, node *protocol.Node, connection basenode.Connection) {
+func socketConnection(state *State, node *protocol.Node, connection basenode.Connection) {
 	r, _ := regexp.Compile("<([01]+|DOOR)>")
 
 	for {
 		<-time.After(time.Second)
 
-		ports, err := GetMetaList()
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
+		log.Infof("Connecting to %s", *ip)
 
-		var port OsSerialPort
-
-		for _, val := range ports {
-			if val.SerialNumber == "A901G8E2" {
-				port = val
-			}
-		}
-
-		if port.Name == "" {
-			continue
-		}
-
-		log.Infof("Connecting to %s", port.Name)
-		c := &serial.Config{Name: port.Name, Baud: 9600}
-		s, err := serial.OpenPort(c)
+		s, err := net.Dial("tcp", *ip+":23")
 		if err != nil {
 			log.Error("Failed to open port: ", err)
 			continue
 		}
+
+		log.Info("Connected to device")
 
 		var buff string
 
